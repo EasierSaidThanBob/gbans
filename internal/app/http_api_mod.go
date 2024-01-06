@@ -82,7 +82,7 @@ func onAPIPostNewsCreate(app *App) gin.HandlerFunc {
 		ctx.JSON(http.StatusCreated, req)
 
 		go app.bot.SendPayload(discord.Payload{
-			ChannelID: app.conf.Discord.LogChannelID,
+			ChannelID: app.settings.Discord.LogChannelID,
 			Embed: discord.
 				NewEmbed("News Created").
 				SetDescription(req.BodyMD).
@@ -128,7 +128,7 @@ func onAPIPostNewsUpdate(app *App) gin.HandlerFunc {
 		ctx.JSON(http.StatusAccepted, entry)
 
 		app.bot.SendPayload(discord.Payload{
-			ChannelID: app.conf.Discord.LogChannelID,
+			ChannelID: app.settings.Discord.LogChannelID,
 			Embed: discord.
 				NewEmbed("News Updated").
 				AddField("Title", entry.Title).
@@ -388,7 +388,7 @@ func onAPIPostBanState(app *App) gin.HandlerFunc {
 			return
 		}
 
-		go app.bot.SendPayload(discord.Payload{ChannelID: app.conf.Discord.LogChannelID, Embed: nil})
+		go app.bot.SendPayload(discord.Payload{ChannelID: app.settings.Discord.LogChannelID, Embed: nil})
 	}
 }
 

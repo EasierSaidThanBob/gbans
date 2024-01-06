@@ -49,14 +49,14 @@ func newLazyResult(count int64, data any) LazyResult {
 
 func newHTTPServer(ctx context.Context, app *App) *http.Server {
 	httpServer := &http.Server{
-		Addr:           app.conf.HTTP.Addr(),
+		Addr:           app.settings.HTTP.Addr(),
 		Handler:        createRouter(ctx, app),
 		ReadTimeout:    10 * time.Second,
 		WriteTimeout:   120 * time.Second,
 		MaxHeaderBytes: 1 << 20,
 	}
 
-	if app.conf.HTTP.TLS {
+	if app.settings.HTTP.TLS {
 		tlsVar := &tls.Config{
 			// Only use curves which have assembly implementations
 			CurvePreferences: []tls.CurveID{

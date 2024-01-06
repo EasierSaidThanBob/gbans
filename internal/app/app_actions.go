@@ -141,7 +141,7 @@ func (app *App) Kick(ctx context.Context, _ store.Origin, target steamid.SID64, 
 	app.addTarget(ctx, msgEmbed, target)
 	app.addAuthor(ctx, msgEmbed, author)
 
-	app.bot.SendPayload(discord.Payload{ChannelID: app.conf.Discord.LogChannelID, Embed: msgEmbed.MessageEmbed})
+	app.bot.SendPayload(discord.Payload{ChannelID: app.settings.Discord.LogChannelID, Embed: msgEmbed.MessageEmbed})
 
 	return nil
 }
@@ -181,7 +181,7 @@ func (app *App) Silence(ctx context.Context, _ store.Origin, target steamid.SID6
 	app.addTarget(ctx, msgEmbed, target)
 	app.addAuthor(ctx, msgEmbed, author)
 
-	app.bot.SendPayload(discord.Payload{ChannelID: app.conf.Discord.LogChannelID, Embed: msgEmbed.MessageEmbed})
+	app.bot.SendPayload(discord.Payload{ChannelID: app.settings.Discord.LogChannelID, Embed: msgEmbed.MessageEmbed})
 
 	return nil
 }
@@ -206,7 +206,7 @@ func (app *App) Say(ctx context.Context, author steamid.SID64, serverName string
 
 	app.addAuthor(ctx, msgEmbed, author)
 
-	app.bot.SendPayload(discord.Payload{ChannelID: app.conf.Discord.LogChannelID, Embed: msgEmbed.MessageEmbed})
+	app.bot.SendPayload(discord.Payload{ChannelID: app.settings.Discord.LogChannelID, Embed: msgEmbed.MessageEmbed})
 
 	return nil
 }
@@ -233,7 +233,7 @@ func (app *App) CSay(ctx context.Context, author steamid.SID64, serverName strin
 
 	app.addAuthor(ctx, msgEmbed, author)
 
-	app.bot.SendPayload(discord.Payload{ChannelID: app.conf.Discord.LogChannelID, Embed: msgEmbed.MessageEmbed})
+	app.bot.SendPayload(discord.Payload{ChannelID: app.settings.Discord.LogChannelID, Embed: msgEmbed.MessageEmbed})
 
 	return nil
 }
@@ -255,7 +255,7 @@ func (app *App) PSay(ctx context.Context, target steamid.SID64, message string) 
 		SetDescription(message).
 		SetColor(app.bot.Colour.Success)
 
-	app.bot.SendPayload(discord.Payload{ChannelID: app.conf.Discord.LogChannelID, Embed: msgEmbed.MessageEmbed})
+	app.bot.SendPayload(discord.Payload{ChannelID: app.settings.Discord.LogChannelID, Embed: msgEmbed.MessageEmbed})
 
 	return nil
 }
@@ -286,7 +286,7 @@ func (app *App) SetSteam(ctx context.Context, sid64 steamid.SID64, discordID str
 
 	app.addAuthor(ctx, msgEmbed, sid64)
 
-	app.bot.SendPayload(discord.Payload{ChannelID: app.conf.Discord.LogChannelID, Embed: msgEmbed.Truncate().MessageEmbed})
+	app.bot.SendPayload(discord.Payload{ChannelID: app.settings.Discord.LogChannelID, Embed: msgEmbed.Truncate().MessageEmbed})
 
 	return nil
 }
@@ -316,7 +316,7 @@ func (app *App) FilterAdd(ctx context.Context, filter *store.Filter) error {
 	app.addAuthor(ctx, msgEmbed, filter.AuthorID)
 
 	app.bot.SendPayload(discord.Payload{
-		ChannelID: app.conf.Discord.LogChannelID, Embed: msgEmbed.MessageEmbed,
+		ChannelID: app.settings.Discord.LogChannelID, Embed: msgEmbed.MessageEmbed,
 	})
 
 	return nil
@@ -354,7 +354,7 @@ func (app *App) FilterDel(ctx context.Context, filterID int64) (bool, error) {
 		AddField("filter_id", fmt.Sprintf("%d", filter.FilterID))
 
 	app.bot.SendPayload(discord.Payload{
-		ChannelID: app.conf.Discord.LogChannelID, Embed: msgEmbed.MessageEmbed,
+		ChannelID: app.settings.Discord.LogChannelID, Embed: msgEmbed.MessageEmbed,
 	})
 
 	return true, nil

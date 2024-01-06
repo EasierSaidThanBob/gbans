@@ -92,16 +92,16 @@ func createRouter(ctx context.Context, app *App) *gin.Engine {
 	engine := gin.New()
 	engine.MaxMultipartMemory = 8 << 24
 
-	if app.conf.General.Mode != ReleaseMode {
+	if app.settings.General.Mode != ReleaseMode {
 		pprof.Register(engine)
 	}
 
-	if app.conf.General.Mode != TestMode {
+	if app.settings.General.Mode != TestMode {
 		engine.Use(httpErrorHandler(app.log), gin.Recovery())
-		engine.Use(useSecure(app.conf.General.Mode, app.conf.S3.ExternalURL))
+		engine.Use(useSecure(app.settings.General.Mode, app.settings.S3.ExternalURL))
 
 		corsConfig := cors.DefaultConfig()
-		corsConfig.AllowOrigins = app.conf.HTTP.CorsOrigins
+		corsConfig.AllowOrigins = app.settings.HTTP.CorsOrigins
 		corsConfig.AllowHeaders = append(corsConfig.AllowHeaders, "Authorization")
 		corsConfig.AllowWildcard = false
 		corsConfig.AllowCredentials = false
@@ -114,7 +114,7 @@ func createRouter(ctx context.Context, app *App) *gin.Engine {
 	})
 	engine.Use(prom.Instrument())
 
-	staticPath := app.conf.HTTP.StaticPath
+	staticPath := app.settings.HTTP.StaticPath
 	if staticPath == "" {
 		staticPath = "./dist"
 	}
@@ -126,7 +126,7 @@ func createRouter(ctx context.Context, app *App) *gin.Engine {
 
 	engine.StaticFS("/dist", http.Dir(absStaticPath))
 
-	if app.conf.General.Mode != TestMode {
+	if app.settings.General.Mode != TestMode {
 		engine.LoadHTMLFiles(filepath.Join(absStaticPath, "index.html"))
 	}
 
@@ -145,12 +145,12 @@ func createRouter(ctx context.Context, app *App) *gin.Engine {
 	for _, rt := range jsRoutes {
 		engine.GET(rt, func(c *gin.Context) {
 			c.HTML(http.StatusOK, "index.html", jsConfig{
-				SiteName:        app.conf.General.SiteName,
-				DiscordClientID: app.conf.Discord.AppID,
-				DiscordLinkID:   app.conf.Discord.LinkID,
-				AssetURL:        app.conf.S3.ExternalURL,
-				BucketDemo:      app.conf.S3.BucketDemo,
-				BucketMedia:     app.conf.S3.BucketMedia,
+				SiteName:        app.settings.General.SiteName,
+				DiscordClientID: app.settings.Discord.AppID,
+				DiscordLinkID:   app.settings.Discord.LinkID,
+				AssetURL:        app.settings.S3.ExternalURL,
+				BucketDemo:      app.settings.S3.BucketDemo,
+				BucketMedia:     app.settings.S3.BucketMedia,
 				BuildVersion:    BuildVersion,
 				BuildCommit:     BuildCommit,
 				BuildDate:       BuildDate,

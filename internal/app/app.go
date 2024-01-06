@@ -4,6 +4,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"github.com/leighmacdonald/gbans/internal/settings"
 	"net"
 	"net/http"
 	"os"
@@ -34,7 +35,7 @@ var (
 )
 
 type App struct {
-	conf                 *Config
+	settings             *settings.Settings
 	bot                  *discord.Bot
 	db                   *store.Store
 	log                  *zap.Logger
@@ -56,13 +57,11 @@ type App struct {
 	netBlock             *NetworkBlocker
 }
 
-func New(conf *Config, database *store.Store, bot *discord.Bot, logger *zap.Logger, assetStore AssetStore) App {
+func New(conf *settings.Settings, database *store.Store, logger *zap.Logger) App {
 	application := App{
-		bot:                  bot,
 		eb:                   fp.NewBroadcaster[logparse.EventType, logparse.ServerEvent](),
 		db:                   database,
-		conf:                 conf,
-		assetStore:           assetStore,
+		settings:             conf,
 		log:                  logger,
 		logFileChan:          make(chan *logFilePayload, 10),
 		notificationChan:     make(chan NotificationPayload, 5),
@@ -78,17 +77,43 @@ func New(conf *Config, database *store.Store, bot *discord.Bot, logger *zap.Logg
 		netBlock:             NewNetworkBlocker(),
 	}
 
-	if conf.Discord.Enabled {
-		if errReg := application.registerDiscordHandlers(); errReg != nil {
-			panic(errReg)
-		}
-	}
+	application.reloadBot()
+	application.reloadS3()
 
 	return application
 }
 
+func (app *App) Shutdown() {
+	bot.Shutdown(config.DiscordGuildID)
+}
+
+func (app *App) reloadBot() {
+
+	if conf.DiscordEnabled {
+		if errReg := application.registerDiscordHandlers(); errReg != nil {
+			panic(errReg)
+		}
+	}
+	bot, errBot := discord.New(rootLogger, config.DiscordToken,
+		config.DiscordAppID, config.DiscordUnregisterOnStart, config.HTTPExternalURL)
+	if errBot != nil {
+		rootLogger.Fatal("Failed to connect to perform initial discord connection")
+	}
+
+	if errDiscord := bot.Start(); errDiscord != nil {
+		rootLogger.Error("Failed to start discord", zap.Error(errDiscord))
+	}
+}
+
+func (app *App) reloadS3() {
+	s3Client, errClient := app.NewS3Client(rootLogger, config.S3Endpoint, config.S3AccessKey, config.S3SecretKey, config.S3SSL, config.S3Region)
+	if errClient != nil {
+		rootLogger.Fatal("Failed to setup S3 client", zap.Error(errClient))
+	}
+}
+
 func (app *App) initLogAddress() {
-	if app.conf.Debug.AddRCONLogAddress == "" {
+	if app.settings.DebugRCONAddress == "" {
 		return
 	}
 
@@ -102,7 +127,7 @@ func (app *App) initLogAddress() {
 			continue
 		}
 
-		_, errExec := server.Exec(fmt.Sprintf("logaddress_add %s", app.conf.Debug.AddRCONLogAddress))
+		_, errExec := server.Exec(fmt.Sprintf("logaddress_add %s", app.settings.DebugRCONAddress))
 		if errExec != nil {
 			app.log.Error("Failed to set logaddress")
 		}
@@ -190,7 +215,7 @@ func (app *App) Init(ctx context.Context) error {
 		zap.String("commit", BuildCommit),
 		zap.String("date", BuildDate))
 
-	if setupErr := firstTimeSetup(ctx, app.conf, app.db); setupErr != nil {
+	if setupErr := firstTimeSetup(ctx, app.settings, app.db); setupErr != nil {
 		app.log.Fatal("Failed to do first time setup", zap.Error(setupErr))
 	}
 
@@ -198,7 +223,7 @@ func (app *App) Init(ctx context.Context) error {
 	app.startWorkers(ctx)
 
 	// Load the filtered word set into memory
-	if app.conf.Filter.Enabled {
+	if app.settings.Filter.Enabled {
 		if errFilter := app.LoadFilters(ctx); errFilter != nil {
 			return errors.Wrap(errFilter, "Failed to load filters")
 		}
@@ -266,11 +291,11 @@ func (app *App) loadNetBlocks(ctx context.Context) error {
 	return nil
 }
 
-func (app *App) StartHTTP(ctx context.Context) error {
+func (app *App) Listen(ctx context.Context) error {
 	app.log.Info("Service status changed", zap.String("state", "ready"))
 	defer app.log.Info("Service status changed", zap.String("state", "stopped"))
 
-	if app.conf.General.Mode == ReleaseMode {
+	if app.settings.General.Mode == ReleaseMode {
 		gin.SetMode(gin.ReleaseMode)
 	} else {
 		gin.SetMode(gin.DebugMode)
@@ -307,7 +332,7 @@ func (app *App) ExtURL(obj LinkablePath) string {
 }
 
 func (app *App) ExtURLRaw(path string, args ...any) string {
-	return strings.TrimRight(app.conf.General.ExternalURL, "/") + fmt.Sprintf(strings.TrimLeft(path, "."), args...)
+	return strings.TrimRight(app.settings.General.ExternalURL, "/") + fmt.Sprintf(strings.TrimLeft(path, "."), args...)
 }
 
 type newUserWarning struct {
@@ -326,7 +351,7 @@ func (app *App) warnWorker(ctx context.Context) { //nolint:maintidx
 
 	warningHandler := func() {
 		for {
-			warnDur := app.conf.General.WarningTimeoutValue
+			warnDur := app.settings.General.WarningTimeoutValue
 			select {
 			case now := <-ticker.C:
 				for steamID := range warnings {
@@ -361,8 +386,8 @@ func (app *App) warnWorker(ctx context.Context) { //nolint:maintidx
 					continue
 				}
 
-				title := fmt.Sprintf("Language Warning (#%d/%d)", len(warnings[newWarn.userMessage.SteamID])+1, app.conf.General.WarningLimit)
-				if app.conf.Filter.Dry {
+				title := fmt.Sprintf("Language Warning (#%d/%d)", len(warnings[newWarn.userMessage.SteamID])+1, app.settings.General.WarningLimit)
+				if app.settings.Filter.Dry {
 					title = "[DRYRUN] " + title
 				}
 
@@ -383,7 +408,7 @@ func (app *App) warnWorker(ctx context.Context) { //nolint:maintidx
 					continue
 				}
 
-				if !app.conf.Filter.Dry {
+				if !app.settings.Filter.Dry {
 					_, found := warnings[newWarn.userMessage.SteamID]
 					if !found {
 						warnings[newWarn.userMessage.SteamID] = []userWarning{}
@@ -391,7 +416,7 @@ func (app *App) warnWorker(ctx context.Context) { //nolint:maintidx
 
 					warnings[newWarn.userMessage.SteamID] = append(warnings[newWarn.userMessage.SteamID], newWarn.userWarning)
 
-					if len(warnings[newWarn.userMessage.SteamID]) > app.conf.General.WarningLimit {
+					if len(warnings[newWarn.userMessage.SteamID]) > app.settings.General.WarningLimit {
 						log.Info("Warn limit exceeded",
 							zap.Int64("sid64", newWarn.userMessage.SteamID.Int64()),
 							zap.Int("count", len(warnings[newWarn.userMessage.SteamID])))
@@ -411,7 +436,7 @@ func (app *App) warnWorker(ctx context.Context) { //nolint:maintidx
 								continue
 							}
 
-							if errNewBan := store.NewBanSteam(ctx, store.StringSID(app.conf.General.Owner.String()),
+							if errNewBan := store.NewBanSteam(ctx, store.StringSID(app.settings.General.Owner.String()),
 								store.StringSID(newWarn.userMessage.SteamID.String()),
 								duration,
 								newWarn.WarnReason,
@@ -436,7 +461,7 @@ func (app *App) warnWorker(ctx context.Context) { //nolint:maintidx
 							banSteam.BanType = store.Banned
 							errBan = app.BanSteam(ctx, &banSteam)
 						case store.Kick:
-							errBan = app.Kick(ctx, store.System, newWarn.userMessage.SteamID, app.conf.General.Owner, newWarn.WarnReason)
+							errBan = app.Kick(ctx, store.System, newWarn.userMessage.SteamID, app.settings.General.Owner, newWarn.WarnReason)
 						}
 
 						if errBan != nil {
@@ -466,9 +491,9 @@ func (app *App) warnWorker(ctx context.Context) { //nolint:maintidx
 					}
 				}
 
-				if app.conf.Filter.PingDiscord {
+				if app.settings.Filter.PingDiscord {
 					app.bot.SendPayload(discord.Payload{
-						ChannelID: app.conf.Discord.LogChannelID,
+						ChannelID: app.settings.Discord.LogChannelID,
 						Embed:     msgEmbed.MessageEmbed,
 					})
 				}
@@ -744,7 +769,7 @@ func (app *App) startWorkers(ctx context.Context) {
 	go app.banSweeper(ctx)
 	go app.profileUpdater(ctx)
 	go app.warnWorker(ctx)
-	go app.logReader(ctx, app.conf.Debug.WriteUnhandledLogEvents)
+	go app.logReader(ctx, app.settings.Debug.WriteUnhandledLogEvents)
 	go app.initLogSrc(ctx)
 	go logMetricsConsumer(ctx, app.mc, app.eb, app.log)
 	go app.matchSummarizer(ctx)
@@ -761,7 +786,7 @@ func (app *App) startWorkers(ctx context.Context) {
 
 // UDP log sink.
 func (app *App) initLogSrc(ctx context.Context) {
-	logSrc, errLogSrc := logparse.NewUDPLogListener(app.log, app.conf.Log.SrcdsLogAddr, func(eventType logparse.EventType, event logparse.ServerEvent) {
+	logSrc, errLogSrc := logparse.NewUDPLogListener(app.log, app.settings.Log.SrcdsLogAddr, func(eventType logparse.EventType, event logparse.ServerEvent) {
 		app.eb.Emit(event.EventType, event)
 	})
 
@@ -963,7 +988,7 @@ func (app *App) isOnIPWithBan(ctx context.Context, steamID steamid.SID64, addres
 
 	var newBan store.BanSteam
 	if errNewBan := store.NewBanSteam(ctx,
-		store.StringSID(app.conf.General.Owner.String()),
+		store.StringSID(app.settings.General.Owner.String()),
 		store.StringSID(steamID.String()), duration, store.Evading, store.Evading.String(),
 		"Connecting from same IP as banned player", store.System,
 		0, store.Banned, false, &newBan); errNewBan != nil {

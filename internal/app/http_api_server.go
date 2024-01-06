@@ -61,7 +61,7 @@ func onSAPIPostServerAuth(app *App) gin.HandlerFunc {
 			return
 		}
 
-		accessToken, errToken := newServerToken(server.ServerID, app.conf.HTTP.CookieKey)
+		accessToken, errToken := newServerToken(server.ServerID, app.settings.HTTP.CookieKey)
 		if errToken != nil {
 			responseErr(ctx, http.StatusUnauthorized, consts.ErrPermissionDenied)
 			log.Error("Failed to create new server access token", zap.Error(errToken))
@@ -115,7 +115,7 @@ func onAPIPostPingMod(app *App) gin.HandlerFunc {
 		state := app.state.current()
 		players := state.find(findOpts{SteamID: req.SteamID})
 
-		if len(players) == 0 && app.conf.General.Mode != TestMode {
+		if len(players) == 0 && app.settings.General.Mode != TestMode {
 			log.Error("Failed to find player on /mod call")
 			responseErr(ctx, http.StatusFailedDependency, consts.ErrInternal)
 
@@ -127,18 +127,18 @@ func onAPIPostPingMod(app *App) gin.HandlerFunc {
 			"message": "Moderators have been notified",
 		})
 
-		if !app.conf.Discord.Enabled {
+		if !app.settings.Discord.Enabled {
 			return
 		}
 
 		msgEmbed := discord.
 			NewEmbed("New User In-Game Report").
-			SetDescription(fmt.Sprintf("%s | <@&%s>", req.Reason, app.conf.Discord.ModPingRoleID)).
+			SetDescription(fmt.Sprintf("%s | <@&%s>", req.Reason, app.settings.Discord.ModPingRoleID)).
 			AddField("server", req.ServerName)
 
 		app.addAuthor(ctx, msgEmbed, req.SteamID).Truncate()
 
-		app.bot.SendPayload(discord.Payload{ChannelID: app.conf.Discord.LogChannelID, Embed: msgEmbed.MessageEmbed})
+		app.bot.SendPayload(discord.Payload{ChannelID: app.settings.Discord.LogChannelID, Embed: msgEmbed.MessageEmbed})
 	}
 }
 
@@ -456,14 +456,14 @@ func onAPIPostDemo(app *App) gin.HandlerFunc {
 			intStats[steamID] = gin.H{}
 		}
 
-		asset, errAsset := store.NewAsset(demoContent, app.conf.S3.BucketDemo, demoFormFile.Filename)
+		asset, errAsset := store.NewAsset(demoContent, app.settings.S3.BucketDemo, demoFormFile.Filename)
 		if errAsset != nil {
 			responseErr(ctx, http.StatusInternalServerError, errors.New("Could not save asset"))
 
 			return
 		}
 
-		if errPut := app.assetStore.Put(ctx, app.conf.S3.BucketDemo, asset.Name,
+		if errPut := app.assetStore.Put(ctx, app.settings.S3.BucketDemo, asset.Name,
 			bytes.NewReader(demoContent), asset.Size, asset.MimeType); errPut != nil {
 			responseErr(ctx, http.StatusInternalServerError, errors.New("Could not save media"))
 
@@ -694,7 +694,7 @@ func onAPIPostReportCreate(app *App) gin.HandlerFunc {
 
 		log.Info("New report created successfully", zap.Int64("report_id", report.ReportID))
 
-		if !app.conf.Discord.Enabled {
+		if !app.settings.Discord.Enabled {
 			return
 		}
 
@@ -727,7 +727,7 @@ func onAPIPostReportCreate(app *App) gin.HandlerFunc {
 		discord.AddFieldsSteamID(msgEmbed, report.TargetID)
 
 		app.bot.SendPayload(discord.Payload{
-			ChannelID: app.conf.Discord.LogChannelID,
+			ChannelID: app.settings.Discord.LogChannelID,
 			Embed:     msgEmbed.Truncate().MessageEmbed,
 		})
 	}

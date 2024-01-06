@@ -62,7 +62,7 @@ func (app *App) BanSteam(ctx context.Context, banSteam *store.BanSteam) error {
 		app.log.Info("Report state set to closed", zap.Int64("report_id", banSteam.ReportID))
 	}
 
-	if app.conf.Discord.Enabled {
+	if app.settings.Discord.Enabled {
 		go func() {
 			var (
 				title  string
@@ -94,7 +94,7 @@ func (app *App) BanSteam(ctx context.Context, banSteam *store.BanSteam) error {
 
 			msgEmbed.AddField("Expires In", expIn)
 			msgEmbed.AddField("Expires At", expAt)
-			app.bot.SendPayload(discord.Payload{ChannelID: app.conf.Discord.PublicLogChannelID, Embed: msgEmbed.Truncate().MessageEmbed})
+			app.bot.SendPayload(discord.Payload{ChannelID: app.settings.Discord.PublicLogChannelID, Embed: msgEmbed.Truncate().MessageEmbed})
 		}()
 	}
 	// TODO mute player currently in-game w/o kicking
@@ -187,7 +187,7 @@ func (app *App) BanCIDR(ctx context.Context, banNet *store.BanCIDR) error {
 	app.addAuthor(ctx, msgEmbed, banNet.SourceID)
 
 	app.bot.SendPayload(discord.Payload{
-		ChannelID: app.conf.Discord.LogChannelID,
+		ChannelID: app.settings.Discord.LogChannelID,
 		Embed:     msgEmbed.Truncate().MessageEmbed,
 	})
 
@@ -245,7 +245,7 @@ func (app *App) Unban(ctx context.Context, target steamid.SID64, reason string) 
 	discord.AddFieldsSteamID(msgEmbed, bannedPerson.TargetID)
 
 	app.bot.SendPayload(discord.Payload{
-		ChannelID: app.conf.Discord.LogChannelID,
+		ChannelID: app.settings.Discord.LogChannelID,
 		Embed:     msgEmbed.Truncate().MessageEmbed,
 	})
 
@@ -284,7 +284,7 @@ func (app *App) UnbanASN(ctx context.Context, asnNum string) (bool, error) {
 	}
 
 	app.bot.SendPayload(discord.Payload{
-		ChannelID: app.conf.Discord.LogChannelID,
+		ChannelID: app.settings.Discord.LogChannelID,
 		Embed:     msgEmbed.Truncate().MessageEmbed,
 	})
 

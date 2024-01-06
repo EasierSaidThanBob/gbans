@@ -58,7 +58,7 @@ func onTokenRefresh(app *App) gin.HandlerFunc {
 
 		userClaims := userAuthClaims{}
 
-		refreshToken, errParseClaims := jwt.ParseWithClaims(refreshTokenString, &userClaims, makeGetTokenKey(app.conf.HTTP.CookieKey))
+		refreshToken, errParseClaims := jwt.ParseWithClaims(refreshTokenString, &userClaims, makeGetTokenKey(app.settings.HTTP.CookieKey))
 		if errParseClaims != nil {
 			if errors.Is(errParseClaims, jwt.ErrSignatureInvalid) {
 				log.Error("jwt signature invalid!", zap.Error(errParseClaims))
@@ -93,7 +93,7 @@ func onTokenRefresh(app *App) gin.HandlerFunc {
 			return
 		}
 
-		tokens, errMakeToken := makeTokens(ctx, app.db, app.conf.HTTP.CookieKey, auth.SteamID, false)
+		tokens, errMakeToken := makeTokens(ctx, app.db, app.settings.HTTP.CookieKey, auth.SteamID, false)
 		if errMakeToken != nil {
 			ctx.AbortWithStatus(http.StatusUnauthorized)
 			log.Error("Failed to create access token pair", zap.Error(errMakeToken))
@@ -168,8 +168,8 @@ func onOAuthDiscordCallback(app *App) gin.HandlerFunc {
 	fetchToken := func(ctx context.Context, code string) (string, error) {
 		// v, _ := go_oauth_pkce_code_verifier.CreateCodeVerifierFromBytes([]byte(code))
 		form := url.Values{}
-		form.Set("client_id", app.conf.Discord.AppID)
-		form.Set("client_secret", app.conf.Discord.AppSecret)
+		form.Set("client_id", app.settings.Discord.AppID)
+		form.Set("client_secret", app.settings.Discord.AppSecret)
 		form.Set("redirect_uri", app.ExtURLRaw("/login/discord"))
 		form.Set("code", code)
 		form.Set("grant_type", "authorization_code")
@@ -292,7 +292,7 @@ func onAPILogout(app *App) gin.HandlerFunc {
 			return
 		}
 
-		parsedExternal, errExternal := url.Parse(app.conf.General.ExternalURL)
+		parsedExternal, errExternal := url.Parse(app.settings.General.ExternalURL)
 		if errExternal != nil {
 			ctx.Status(http.StatusInternalServerError)
 			log.Error("Failed to parse ext url", zap.Error(errExternal))
@@ -301,7 +301,7 @@ func onAPILogout(app *App) gin.HandlerFunc {
 		}
 
 		ctx.SetCookie(fingerprintCookieName, "", -1, "/api",
-			parsedExternal.Hostname(), app.conf.General.Mode == ReleaseMode, true)
+			parsedExternal.Hostname(), app.settings.General.Mode == ReleaseMode, true)
 
 		auth := store.PersonAuth{}
 		if errGet := app.db.GetPersonAuthByRefreshToken(ctx, fingerprint, &auth); errGet != nil {
@@ -630,14 +630,14 @@ func onAPISaveMedia(app *App) gin.HandlerFunc {
 			log.Error("Invalid media uploaded", zap.Error(errMedia))
 		}
 
-		asset, errAsset := store.NewAsset(content, app.conf.S3.BucketMedia, "")
+		asset, errAsset := store.NewAsset(content, app.settings.S3.BucketMedia, "")
 		if errAsset != nil {
 			responseErr(ctx, http.StatusInternalServerError, errors.New("Could not save asset"))
 
 			return
 		}
 
-		if errPut := app.assetStore.Put(ctx, app.conf.S3.BucketMedia, asset.Name, bytes.NewReader(content), asset.Size, asset.MimeType); errPut != nil {
+		if errPut := app.assetStore.Put(ctx, app.settings.S3.BucketMedia, asset.Name, bytes.NewReader(content), asset.Size, asset.MimeType); errPut != nil {
 			responseErr(ctx, http.StatusInternalServerError, errors.New("Could not save media"))
 
 			log.Error("Failed to save user media to s3 backend", zap.Error(errPut))
@@ -786,7 +786,7 @@ func onAPIPostReportMessage(app *App) gin.HandlerFunc {
 		app.addAuthorUserProfile(msgEmbed, person).Truncate()
 
 		app.bot.SendPayload(discord.Payload{
-			ChannelID: app.conf.Discord.LogChannelID,
+			ChannelID: app.settings.Discord.LogChannelID,
 			Embed:     msgEmbed.MessageEmbed,
 		})
 	}
@@ -862,7 +862,7 @@ func onAPIEditReportMessage(app *App) gin.HandlerFunc {
 		app.addAuthorUserProfile(msgEmbed, curUser).Truncate()
 
 		app.bot.SendPayload(discord.Payload{
-			ChannelID: app.conf.Discord.LogChannelID,
+			ChannelID: app.settings.Discord.LogChannelID,
 			Embed:     msgEmbed.MessageEmbed,
 		})
 	}
@@ -916,7 +916,7 @@ func onAPIDeleteReportMessage(app *App) gin.HandlerFunc {
 			Truncate()
 
 		app.bot.SendPayload(discord.Payload{
-			ChannelID: app.conf.Discord.LogChannelID,
+			ChannelID: app.settings.Discord.LogChannelID,
 			Embed:     msgEmbed.MessageEmbed,
 		})
 	}
@@ -1068,7 +1068,7 @@ func onAPIPostBanMessage(app *App) gin.HandlerFunc {
 		app.addAuthorUserProfile(msgEmbed, curUserProfile).Truncate()
 
 		app.bot.SendPayload(discord.Payload{
-			ChannelID: app.conf.Discord.LogChannelID,
+			ChannelID: app.settings.Discord.LogChannelID,
 			Embed:     msgEmbed.MessageEmbed,
 		})
 	}
@@ -1143,7 +1143,7 @@ func onAPIEditBanMessage(app *App) gin.HandlerFunc {
 		app.addAuthorUserProfile(msgEmbed, curUser).Truncate()
 
 		app.bot.SendPayload(discord.Payload{
-			ChannelID: app.conf.Discord.LogChannelID,
+			ChannelID: app.settings.Discord.LogChannelID,
 			Embed:     msgEmbed.MessageEmbed,
 		})
 	}
@@ -1195,7 +1195,7 @@ func onAPIDeleteBanMessage(app *App) gin.HandlerFunc {
 		app.addAuthorUserProfile(msgEmbed, curUser).Truncate()
 
 		app.bot.SendPayload(discord.Payload{
-			ChannelID: app.conf.Discord.LogChannelID,
+			ChannelID: app.settings.Discord.LogChannelID,
 			Embed:     msgEmbed.MessageEmbed,
 		})
 	}
@@ -1548,14 +1548,14 @@ func onAPISaveContestEntryMedia(app *App) gin.HandlerFunc {
 			log.Error("Invalid media uploaded", zap.Error(errMedia))
 		}
 
-		asset, errAsset := store.NewAsset(content, app.conf.S3.BucketMedia, "")
+		asset, errAsset := store.NewAsset(content, app.settings.S3.BucketMedia, "")
 		if errAsset != nil {
 			responseErr(ctx, http.StatusInternalServerError, errors.New("Could not save asset"))
 
 			return
 		}
 
-		if errPut := app.assetStore.Put(ctx, app.conf.S3.BucketMedia, asset.Name, bytes.NewReader(content), asset.Size, asset.MimeType); errPut != nil {
+		if errPut := app.assetStore.Put(ctx, app.settings.S3.BucketMedia, asset.Name, bytes.NewReader(content), asset.Size, asset.MimeType); errPut != nil {
 			responseErr(ctx, http.StatusInternalServerError, errors.New("Could not save user contest media"))
 
 			log.Error("Failed to save user contest entry media to s3 backend", zap.Error(errPut))

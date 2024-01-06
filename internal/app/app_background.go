@@ -158,7 +158,7 @@ func (app *App) onMatchComplete(ctx context.Context, matchID uuid.UUID) {
 	}
 
 	app.bot.SendPayload(discord.Payload{
-		ChannelID: app.conf.Discord.PublicMatchLogChannelID,
+		ChannelID: app.settings.Discord.PublicMatchLogChannelID,
 		Embed:     app.genDiscordMatchEmbed(result).MessageEmbed,
 	})
 }
@@ -409,7 +409,7 @@ func (app *App) showReportMeta(ctx context.Context) {
 			msgEmbed.AddField(">3 Days", fmt.Sprintf(" %d", meta.Open3Days)).MakeFieldInline()
 			msgEmbed.AddField(">1 Week", fmt.Sprintf(" %d", meta.OpenWeek)).MakeFieldInline()
 
-			app.bot.SendPayload(discord.Payload{ChannelID: app.conf.Discord.LogChannelID, Embed: msgEmbed.Truncate().MessageEmbed})
+			app.bot.SendPayload(discord.Payload{ChannelID: app.settings.Discord.LogChannelID, Embed: msgEmbed.Truncate().MessageEmbed})
 		case <-ctx.Done():
 			app.log.Debug("showReportMeta shutting down")
 
@@ -432,13 +432,13 @@ func (app *App) demoCleaner(ctx context.Context) {
 		case <-ticker.C:
 			triggerChan <- true
 		case <-triggerChan:
-			if !app.conf.General.DemoCleanupEnabled {
+			if !app.settings.General.DemoCleanupEnabled {
 				continue
 			}
 
 			log.Debug("Starting demo cleanup")
 
-			expired, errExpired := app.db.ExpiredDemos(ctx, app.conf.General.DemoCountLimit)
+			expired, errExpired := app.db.ExpiredDemos(ctx, app.settings.General.DemoCountLimit)
 			if errExpired != nil {
 				if errors.Is(errExpired, store.ErrNoResult) {
 					continue
@@ -454,22 +454,22 @@ func (app *App) demoCleaner(ctx context.Context) {
 			count := 0
 
 			for _, demo := range expired {
-				if errRemove := app.assetStore.Remove(ctx, app.conf.S3.BucketDemo, demo.Title); errRemove != nil {
+				if errRemove := app.assetStore.Remove(ctx, app.settings.S3.BucketDemo, demo.Title); errRemove != nil {
 					log.Error("Failed to remove demo asset from S3",
-						zap.Error(errRemove), zap.String("bucket", app.conf.S3.BucketDemo), zap.String("name", demo.Title))
+						zap.Error(errRemove), zap.String("bucket", app.settings.S3.BucketDemo), zap.String("name", demo.Title))
 
 					continue
 				}
 
 				if errDrop := app.db.DropDemo(ctx, &store.DemoFile{DemoID: demo.DemoID, Title: demo.Title}); errDrop != nil {
 					log.Error("Failed to remove demo", zap.Error(errDrop),
-						zap.String("bucket", app.conf.S3.BucketDemo), zap.String("name", demo.Title))
+						zap.String("bucket", app.settings.S3.BucketDemo), zap.String("name", demo.Title))
 
 					continue
 				}
 
 				log.Info("Demo expired and removed",
-					zap.String("bucket", app.conf.S3.BucketDemo), zap.String("name", demo.Title))
+					zap.String("bucket", app.settings.S3.BucketDemo), zap.String("name", demo.Title))
 				count++
 			}
 
@@ -746,7 +746,7 @@ func (app *App) banSweeper(ctx context.Context) {
 							}
 
 							app.bot.SendPayload(discord.Payload{
-								ChannelID: app.conf.Discord.LogChannelID,
+								ChannelID: app.settings.Discord.LogChannelID,
 								Embed:     msgEmbed.Truncate().MessageEmbed,
 							})
 

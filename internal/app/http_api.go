@@ -273,9 +273,9 @@ func onAPIExportBansTF2BD(app *App) gin.HandlerFunc {
 		out := thirdparty.TF2BDSchema{
 			Schema: "https://raw.githubusercontent.com/PazerOP/tf2_bot_detector/master/schemas/v3/playerlist.schema.json",
 			FileInfo: thirdparty.FileInfo{
-				Authors:     []string{app.conf.General.SiteName},
+				Authors:     []string{app.settings.General.SiteName},
 				Description: "Players permanently banned for cheating",
-				Title:       fmt.Sprintf("%s Cheater List", app.conf.General.SiteName),
+				Title:       fmt.Sprintf("%s Cheater List", app.settings.General.SiteName),
 				UpdateURL:   app.ExtURLRaw("/export/bans/tf2bd"),
 			},
 			Players: []thirdparty.Players{},

@@ -44,13 +44,13 @@ func newPatreonManager(logger *zap.Logger, conf *Config, db *store.Store) *patre
 //		// Attempt to use config file values as the initial source if we have nothing saved.
 //		// These are only used once as they are dynamically updated and stored
 //		// in the database for subsequent retrievals
-//		cat = p.conf.Patreon.CreatorAccessToken
-//		crt = p.conf.Patreon.CreatorRefreshToken
+//		cat = p.settings.Patreon.CreatorAccessToken
+//		crt = p.settings.Patreon.CreatorRefreshToken
 //	}
 //
 //	oAuthConfig := oauth2.Config{
-//		ClientID:     p.conf.Patreon.ClientID,
-//		ClientSecret: p.conf.Patreon.ClientSecret,
+//		ClientID:     p.settings.Patreon.ClientID,
+//		ClientSecret: p.settings.Patreon.ClientSecret,
 //		Endpoint: oauth2.Endpoint{
 //			AuthURL:  patreon.AuthorizationURL,
 //			TokenURL: patreon.AccessTokenURL,

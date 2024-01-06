@@ -3,12 +3,12 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"github.com/leighmacdonald/gbans/internal/settings"
 	"os"
 	"os/signal"
 	"syscall"
 
 	"github.com/leighmacdonald/gbans/internal/app"
-	"github.com/leighmacdonald/gbans/internal/discord"
 	"github.com/leighmacdonald/gbans/internal/store"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
@@ -25,19 +25,21 @@ func serveCmd() *cobra.Command {
 			rootCtx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 			defer stop()
 
-			var conf app.Config
-			if errConfig := app.ReadConfig(&conf, false); errConfig != nil {
+			// Start by reading static settings from config file. These are settings that cannot be changed without
+			//restarting the application.
+			config, errConfig := settings.SettingsReadStatic()
+			if errConfig != nil {
 				panic(fmt.Sprintf("Failed to read config: %v", errConfig))
 			}
 
-			rootLogger := app.MustCreateLogger(&conf)
+			rootLogger := app.MustCreateLogger(config.GeneralRunMode, config.LogFile)
 			defer func() {
-				if conf.Log.File != "" {
+				if config.LogFile != "" {
 					_ = rootLogger.Sync()
 				}
 			}()
 
-			database := store.New(rootLogger, conf.DB.DSN, conf.DB.AutoMigrate, conf.DB.LogQueries)
+			database := store.New(rootLogger, config.DatabaseDSN, config.DatabaseAutoMigrate, config.DatabaseLogQueries)
 			if errConnect := database.Connect(rootCtx); errConnect != nil {
 				rootLogger.Fatal("Cannot initialize database", zap.Error(errConnect))
 			}
@@ -48,29 +50,22 @@ func serveCmd() *cobra.Command {
 				}
 			}()
 
-			bot, errBot := discord.New(rootLogger, conf.Discord.Token,
-				conf.Discord.AppID, conf.Discord.UnregisterOnStart, conf.General.ExternalURL)
-			if errBot != nil {
-				rootLogger.Fatal("Failed to connect to perform initial discord connection")
+			dbSettings, errSettings := database.Settings(ctx)
+			if errSettings != nil {
+				panic(errSettings)
 			}
 
-			s3Client, errClient := app.NewS3Client(rootLogger, conf.S3.Endpoint, conf.S3.AccessKey, conf.S3.SecretKey, conf.S3.SSL, conf.S3.Region)
-			if errClient != nil {
-				rootLogger.Fatal("Failed to setup S3 client", zap.Error(errClient))
+			if err := settings.ReadDB(database, dbSettings); err != nil {
+				panic(err)
 			}
 
-			application := app.New(&conf, database, bot, rootLogger, s3Client)
+			application := app.New(&config, database, rootLogger)
 
 			if errInit := application.Init(rootCtx); errInit != nil {
 				rootLogger.Fatal("Failed to init app", zap.Error(errInit))
 			}
 
-			if errDiscord := bot.Start(); errDiscord != nil {
-				rootLogger.Error("Failed to start discord", zap.Error(errDiscord))
-			}
-
-			defer bot.Shutdown(conf.Discord.GuildID)
-			if errWebStart := application.StartHTTP(rootCtx); errWebStart != nil {
+			if errWebStart := application.Listen(rootCtx); errWebStart != nil {
 				rootLogger.Error("Web returned error", zap.Error(errWebStart))
 			}
 

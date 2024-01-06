@@ -15,20 +15,14 @@ import (
 	"github.com/leighmacdonald/steamid/v3/steamid"
 )
 
-type Settings struct {
-	GeneralOwner            steamid.SID64 `mapstructure:"general_owner"`
-	GeneralSiteName         string        `config_key:"general_site_name"`
-	GeneralSteamKey         string        `config_key:"general_steam_key"`
-	GeneralStatusUpdateFreq time.Duration `config_key:"general_server_status_update_freq"`
+type Static struct {
+	GeneralOwner    steamid.SID64 `mapstructure:"general_owner"`
+	GeneralSteamKey string        `config_key:"general_steam_key"`
+	GeneralRunMode  app.RunMode   `config_key:"general_run_mode"`
 
-	GeneralDemoCountLimit int         `config_key:"general_demo_count_limit"`
-	GeneralRunMode        app.RunMode `config_key:"general_run_mode"`
-	GeneralPatreonEnabled bool        `config_key:"patreon_patreon_enabled"`
-
-	DebugUpdateSRCDSLogSecrets   bool   `config_key:"debug_update_srcds_log_secrets"`
-	DebugRCONAddress             string `config_key:"debug_add_rcon_log_address"`
-	DebugSkipOpenIDValidation    bool   `config_key:"debug_skip_open_id_validation"`
-	DebugWriteUnhandledLogEvents bool   `config_key:"debug_write_unhandled_log_events"`
+	DatabaseDSN         string `config_key:"database_dsn"`
+	DatabaseLogQueries  bool   `config_key:"database_log_queries"`
+	DatabaseAutoMigrate bool   `mapstructure:"database_auto_migrate"`
 
 	S3AccessKey   string `config_key:"s3_access_key"`
 	S3SecretKey   string `config_key:"s3_secret_key"`
@@ -46,10 +40,19 @@ type Settings struct {
 	HTTPCookieKey     string        `config_key:"http_cookie_key"`
 	HTTPCorsOrigins   []string      `config_key:"http_cors_origins"`
 	HTTPExternalURL   string        `config_key:"http_external_url"`
+}
 
-	DatabaseDSN         string `config_key:"database_dsn"`
-	DatabaseLogQueries  bool   `config_key:"database_log_queries"`
-	DatabaseAutoMigrate bool   `mapstructure:"database_auto_migrate"`
+type Dynamic struct {
+	GeneralSiteName         string        `config_key:"general_site_name"`
+	GeneralStatusUpdateFreq time.Duration `config_key:"general_server_status_update_freq"`
+	GeneralDemoCountLimit   int           `config_key:"general_demo_count_limit"`
+
+	GeneralPatreonEnabled bool `config_key:"patreon_patreon_enabled"`
+
+	DebugUpdateSRCDSLogSecrets   bool   `config_key:"debug_update_srcds_log_secrets"`
+	DebugRCONAddress             string `config_key:"debug_add_rcon_log_address"`
+	DebugSkipOpenIDValidation    bool   `config_key:"debug_skip_open_id_validation"`
+	DebugWriteUnhandledLogEvents bool   `config_key:"debug_write_unhandled_log_events"`
 
 	WordFilterEnabled      bool `config_key:"word_filter_enabled"`
 	WordFilterPingDiscord  bool `config_key:"word_filter_ping_discord"`
@@ -82,6 +85,11 @@ type Settings struct {
 	IP2LocationASNEnabled   string `config_key:"ip2location_asn_enabled"`
 	IP2LocationIPEnabled    string `config_key:"ip2location_ip_enabled"`
 	IP2LocationProxyEnabled string `config_key:"ip2location_proxy_enabled"`
+}
+
+type Settings struct {
+	Static
+	Dynamic
 }
 
 func (c Settings) Addr() string {
